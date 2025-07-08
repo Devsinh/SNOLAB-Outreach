@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SuperCDMS Dark Matter Detector</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+
+    body {
+      margin: 0;
+      padding: 0 20px 40px;
+      background: radial-gradient(circle at top, #0b3d91, #000);
+      color: #f1f1f1;
+      font-family: 'Orbitron', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .main-container {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 60px;
+      margin-top: 40px;
+      margin-bottom: 30px;
+    }
+
+    .display-container {
+      display: flex;
+      gap: 60px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .reading-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 220px;
+    }
+
+    .reading-title {
+      font-size: 1.4em;
+      color: #ffdd00;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .reading-value {
+      font-size: 3em;
+      color: #00ffcc;
+      text-shadow: 2px 2px #000;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .bar-container {
+      width: 50px;
+      height: 200px;
+      background: #222;
+      border-radius: 20px;
+      box-shadow: inset 0 0 10px #00ffffaa;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      width: 100%;
+      background: lime;
+      border-radius: 15px 15px 0 0;
+      transition: height 0.3s ease, background 0.3s ease;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 0;
+    }
+
+    .result-message {
+      max-width: 300px;
+      font-size: 2em;
+      color: #ffdd00;
+      text-shadow: 2px 2px #000;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 20px;
+      border-radius: 15px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    header {
+      max-width: 900px;
+      text-align: center;
+      margin-top: 30px;
+      margin-bottom: 40px;
+      background: rgba(255 255 255 / 0.08);
+      padding: 25px 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0, 153, 255, 0.5);
+      font-size: 1.2em;
+      line-height: 1.7;
+      color: #c0e7ff;
+    }
+
+    header h1 {
+      font-size: 3em;
+      color: #ffdd00;
+      text-shadow: 2px 2px #000;
+      margin-bottom: 20px;
+    }
+
+    .controls {
+      margin-bottom: 30px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      background: linear-gradient(45deg, #ff00cc, #3333ff);
+      border: none;
+      padding: 15px 30px;
+      font-size: 16px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 15px #ff00cc;
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 20px;
+      color: #aaa;
+      font-size: 0.9em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <div class="display-container">
+      <div class="reading-block">
+        <div class="reading-title">Mass of Interacting Dark Matter</div>
+        <div id="max-value" class="reading-value">0.00 GeV/c²</div>
+        <div class="bar-container">
+          <div id="max-bar" class="bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-message" id="final-message"></div>
+  </div>
+
+  <div class="controls">
+    <button id="connect">Connect to Device</button>
+    <button id="start">Start Measurement</button>
+    <button id="stop">Stop Measurement</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <header>
+    <h1>SuperCDMS Dark Matter Detector</h1>
+    <p>
+      SuperCDMS (Cryogenic Dark Matter Search) is an experiment searching for dark matter—an invisible substance
+      that makes up most of the universe’s mass. SuperCDMS detectors are cooled to near absolute zero, where
+      tiny particle collisions produce minuscule vibrations and electrical signals. By measuring these faint
+      signals, scientists hope to detect dark matter particles directly and learn about the secrets of the cosmos!
+    </p>
+  </header>
+
+  <footer>
+    Created for outreach by your awesome team. Explore the invisible universe!
+  </footer>
+
+  <script>
+    let port;
+    let reader;
+    let writer;
+    let textDecoder;
+    let buffer = "";
+
+    document.getElementById("connect").addEventListener("click", async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        textDecoder = new TextDecoderStream();
+        port.readable.pipeTo(textDecoder.writable);
+        reader = textDecoder.readable.getReader();
+
+        const encoder = new TextEncoderStream();
+        encoder.readable.pipeTo(port.writable);
+        writer = encoder.writable.getWriter();
+
+        readSerial();
+        document.getElementById("final-message").textContent = "Connected";
+      } catch (err) {
+        console.error(err);
+        alert("Failed to connect to device.");
+      }
+    });
+
+  let startInterval;
+
+  document.getElementById("start").addEventListener("click", async () => {
+    if (writer) {
+      await writer.write("START\n");
+      document.getElementById("final-message").textContent = "Measuring...";
+      resetBars();
+
+      if (startInterval) clearInterval(startInterval); // clear any existing loop
+      startInterval = setInterval(() => {
+        writer.write("START\n");
+      }, 7000); // send every 7 seconds
+    }
+  });
+
+    document.getElementById("stop").addEventListener("click", async () => {
+      if (writer) {
+        await writer.write("STOP\n");
+        clearInterval(startInterval);
+      }
+    });
+
+    document.getElementById("reset").addEventListener("click", async () => {
+      if (writer) {
+        await writer.write("RESET\n");
+        document.getElementById("final-message").textContent = "Measurement reset";
+        document.getElementById("max-value").textContent = "0.00 GeV/c²";
+        resetBars();
+      }
+    });
+
+    function resetBars() {
+      updateBar("max-bar", 0);
+    }
+
+    async function readSerial() {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          console.log("Serial reader closed");
+          break;
+        }
+        if (value) {
+          buffer += value;
+          let lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith("UPDATE:")) {
+              handleUpdate(line);
+            } else if (line.startsWith("RESULT:")) {
+              const val = parseFloat(line.split(":")[1]);
+              showFinalResult(val);
+            } else if (line === "RESET_DONE") {
+              console.log("Reset confirmed.");
+            }
+          }
+        }
+      }
+    }
+
+    function handleUpdate(line) {
+      const parts = line.split(":");
+      if (parts.length === 3) {
+        let currentVal = parseFloat(parts[1]);
+        let maxVal = parseFloat(parts[2]);
+
+        // Rescale both values
+        currentVal = rescaleValue(currentVal);
+        maxVal = rescaleValue(maxVal);
+
+        showUpdate(maxVal);
+      }
+    }
+
+    function showUpdate(max) {
+      document.getElementById("max-value").textContent =
+        `${max.toFixed(2)} GeV/c²`;
+      updateBar("max-bar", max);
+    }
+
+    function showFinalResult(val) {
+      const scaledVal = rescaleValue(val);
+      document.getElementById("final-message").textContent =
+        `🎉 Found dark matter of mass ${scaledVal.toFixed(2)} GeV/c² !`;
+      updateBar("max-bar", scaledVal);
+    }
+
+    function rescaleValue(original) {
+      return 0.0 + (original / 35) * (7.5 - 0.0);
+    }
+
+    function updateBar(id, val) {
+      let height = Math.min(val * 40, 200);
+      let color = "lime";
+      if (val > 2) color = "yellow";
+      if (val > 3) color = "orange";
+      if (val > 4) color = "red";
+
+      const bar = document.getElementById(id);
+      bar.style.height = height + "px";
+      bar.style.background = color;
+    }
+  </script>
+</body>
+</html>
