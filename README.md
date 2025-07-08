@@ -2,7 +2,8 @@
 Outreach porject for SNOLAB
 How to make it work:-
 
-Install python in your system
+Install python in your system.
+
 Go to the folder where Outreach.html is placed in your python environment terminal and use the command
 "python -m http.server 8000"
 
